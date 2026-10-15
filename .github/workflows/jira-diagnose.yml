@@ -119,6 +119,14 @@ jobs:
           echo "=== archived issues (Archive API) ==="
           curl -s -w "\n[HTTP %{http_code}]\n" "${auth[@]}" "$JIRA_URL/rest/api/3/issue/archive?maxResults=1000" | python3 -c 'import sys,json; t=sys.stdin.read(); print(t[:1500])'
 
+          echo "=== full permission diff SOFT-1 vs SOFT-2 ==="
+          for K in SOFT-1 SOFT-2; do
+            curl "${auth[@]}" "$JIRA_URL/rest/api/3/mypermissions?issueKey=$K" | python3 -c 'import sys,json; d=json.load(sys.stdin); print("'$K'", json.dumps({k:v.get("havePermission") for k,v in sorted(d.get("permissions",{}).items())}, indent=0))' > /tmp/perm_$K.txt
+          done
+          echo "-- SOFT-1 --"; cat /tmp/perm_SOFT-1.txt
+          echo "-- diff (only lines differing) --"
+          diff /tmp/perm_SOFT-1.txt /tmp/perm_SOFT-2.txt || true
+
           echo "=== create+comment new issue ==="
           NEW=$(curl -s "${auth[@]}" -H "Content-Type: application/json" -X POST "$JIRA_URL/rest/api/3/issue" \
             -d '{"fields":{"project":{"key":"SOFT"},"summary":"diag issue for comment test","issuetype":{"name":"Task"}}}' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("key",""))')
