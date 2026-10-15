@@ -89,6 +89,19 @@ jobs:
             curl -s -w " [HTTP %{http_code}]\n" "${auth[@]}" "$JIRA_URL/rest/api/3/issue/$K/properties"
           done
 
+          echo "=== project type ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/project/SOFT" | python3 -c 'import sys,json; d=json.load(sys.stdin); print({k:d.get(k) for k in ["id","key","style","simplified","projectTypeKey"]})'
+
+          echo "=== issuetype id/name SOFT-1 vs SOFT-2 ==="
+          for K in SOFT-1 SOFT-2; do
+            curl "${auth[@]}" "$JIRA_URL/rest/api/3/issue/$K?fields=issuetype" | python3 -c 'import sys,json; d=json.load(sys.stdin); t=d.get("fields",{}).get("issuetype",{}); print(d.get("key"),"type id=",t.get("id"),"name=",t.get("name"),"subtask=",t.get("subtask"))'
+          done
+
+          echo "=== JSM request probe ==="
+          for K in SOFT-1 SOFT-2; do
+            echo -n "$K servicedeskapi: "; curl -s -o /dev/null -w "HTTP %{http_code}\n" "${auth[@]}" "$JIRA_URL/rest/servicedeskapi/request/$K"
+          done
+
           echo "=== create+comment new issue ==="
           NEW=$(curl -s "${auth[@]}" -H "Content-Type: application/json" -X POST "$JIRA_URL/rest/api/3/issue" \
             -d '{"fields":{"project":{"key":"SOFT"},"summary":"diag issue for comment test","issuetype":{"name":"Task"}}}' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("key",""))')
