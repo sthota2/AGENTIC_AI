@@ -1,0 +1,88 @@
+name: Jira Sync
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    types: [opened, closed, merged, synchronize]
+    branches: [main, dev]
+
+jobs:
+  sync-jira:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.JIRA_API_TOKEN != '' && secrets.JIRA_USERNAME != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install atlassian-python-api
+
+      - name: Sync commits with Jira
+        env:
+          JIRA_URL: https://tsandyk8s.atlassian.net
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEY: SOFT
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_PR_TITLE: ${{ github.event.pull_request.title }}
+          GITHUB_PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          python3 << 'PY'
+          import os
+          import re
+          import subprocess
+          import sys
+          from atlassian import Jira
+
+          jira_url = os.getenv('JIRA_URL')
+          jira_user = os.getenv('JIRA_USERNAME')
+          jira_token = os.getenv('JIRA_API_TOKEN')
+          project_key = os.getenv('JIRA_PROJECT_KEY', 'SOFT')
+
+          jira = Jira(url=jira_url, username=jira_user, password=jira_token, cloud=True)
+
+          # Extract issue keys from commit messages or PR title
+          issue_keys = set()
+          event = os.getenv('GITHUB_EVENT_NAME')
+
+          if event == 'push':
+              try:
+                  result = subprocess.run(['git', 'log', '-1', '--pretty=%B'], stdout=subprocess.PIPE, text=True)
+                  msg = result.stdout
+                  issue_keys.update(re.findall(rf'\b({project_key}-\d+)\b', msg))
+              except Exception as e:
+                  print(e)
+
+          if event == 'pull_request':
+              title = os.getenv('GITHUB_PR_TITLE', '')
+              issue_keys.update(re.findall(rf'\b({project_key}-\d+)\b', title))
+
+          # Add comment to each issue
+          repo = os.getenv('GITHUB_REPO')
+          pr_url = os.getenv('GITHUB_PR_URL')
+          ref = os.getenv('GITHUB_REF')
+
+          for key in issue_keys:
+              try:
+                  if event == 'push':
+                      comment = f"Commit pushed to {ref} in {repo} by {os.getenv('GITHUB_ACTOR')}"
+                  else:
+                      comment = f"PR {pr_url} - {event} by {os.getenv('GITHUB_ACTOR')}"
+                  jira.issue_add_comment(key, comment)
+                  print(f"Updated {key}")
+              except Exception as e:
+                  print(f"Failed to update {key}: {e}")
+          PY
