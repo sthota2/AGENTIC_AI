@@ -1,0 +1,46 @@
+name: Jira Diagnose
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check credentials
+        id: creds
+        env:
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          if [ -n "$JIRA_USERNAME" ] && [ -n "$JIRA_API_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Diagnose Jira access
+        if: steps.creds.outputs.enabled == 'true'
+        env:
+          JIRA_URL: https://tsandyk8s.atlassian.net
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          auth=(-s -u "$JIRA_USERNAME:$JIRA_API_TOKEN")
+          echo "=== /myself ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/myself" | python3 -c 'import sys,json; d=json.load(sys.stdin); print({k:d.get(k) for k in ["accountId","displayName","emailAddress","active"]})'
+
+          echo "=== /project/SOFT (style + roles) ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/project/SOFT" | python3 -c 'import sys,json; d=json.load(sys.stdin); print({k:d.get(k) for k in ["id","key","name","style","simplified","projectTypeKey"]}); print("roles:", d.get("roles"))'
+
+          echo "=== /project/SOFT/role (role -> actors) ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/project/SOFT/role" | python3 -c 'import sys,json; print(json.dumps(json.load(sys.stdin), indent=2)[:2000])'
+
+          echo "=== /mypermissions?projectKey=SOFT ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/mypermissions?projectKey=SOFT&permissions=ADD_COMMENTS,BROWSE_PROJECTS,ADMINISTER_PROJECTS" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps({k:v.get("havePermission") for k,v in d.get("permissions",{}).items()}, indent=2))'
+
+          echo "=== /issue/SOFT-1 (fields) ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/issue/SOFT-1?fields=summary,status,project" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("fields",d), indent=2)[:1000])'
