@@ -44,3 +44,16 @@ jobs:
 
           echo "=== /issue/SOFT-1 (fields) ==="
           curl "${auth[@]}" "$JIRA_URL/rest/api/3/issue/SOFT-1?fields=summary,status,project" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("fields",d), indent=2)[:1000])'
+
+          echo "=== /project/SOFT/role/10020 (Administrator actors) ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/project/SOFT/role/10020" | python3 -c 'import sys,json; d=json.load(sys.stdin); print("actors:", [ (a.get("type"), a.get("displayName") or a.get("name")) for a in d.get("actors",[])])'
+
+          echo "=== POST comment v3 (raw) ==="
+          curl -s -w "\nHTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
+            -X POST "$JIRA_URL/rest/api/3/issue/SOFT-1/comment" \
+            -d '{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"diagnostic comment v3"}]}]}}' | tail -5
+
+          echo "=== POST comment v2 (raw) ==="
+          curl -s -w "\nHTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
+            -X POST "$JIRA_URL/rest/api/2/issue/SOFT-1/comment" \
+            -d '{"body":"diagnostic comment v2"}' | tail -5
