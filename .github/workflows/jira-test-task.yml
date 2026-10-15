@@ -1,0 +1,58 @@
+name: Jira Test Task
+
+on:
+  workflow_dispatch:
+    inputs:
+      summary:
+        description: 'Test task summary'
+        required: false
+        default: 'Test task - AGENTIC_AI Jira integration check'
+      description:
+        description: 'Test task description'
+        required: false
+        default: 'This is a test task created to verify Jira integration is working correctly.'
+
+jobs:
+  create-test-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install atlassian-python-api
+
+      - name: Create Jira test task
+        env:
+          JIRA_URL: https://tsandyk8s.atlassian.net
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEY: SOFT
+          TASK_SUMMARY: ${{ github.event.inputs.summary }}
+          TASK_DESCRIPTION: ${{ github.event.inputs.description }}
+        run: |
+          python3 << 'PY'
+          import os
+          import sys
+          from atlassian import Jira
+
+          jira = Jira(
+              url=os.environ['JIRA_URL'],
+              username=os.environ['JIRA_USERNAME'],
+              password=os.environ['JIRA_API_TOKEN'],
+              cloud=True,
+          )
+
+          fields = {
+              "project": {"key": os.environ.get('JIRA_PROJECT_KEY', 'SOFT')},
+              "summary": os.environ['TASK_SUMMARY'],
+              "description": os.environ['TASK_DESCRIPTION'],
+              "issuetype": {"name": "Task"},
+          }
+
+          issue = jira.create_issue(fields=fields)
+          print(f"Created issue: {issue['key']}")
+          print(f"{os.environ['JIRA_URL']}/browse/{issue['key']}")
+          PY
