@@ -57,3 +57,12 @@ jobs:
           curl -s -w "\nHTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
             -X POST "$JIRA_URL/rest/api/2/issue/SOFT-1/comment" \
             -d '{"body":"diagnostic comment v2"}' | tail -5
+
+          echo "=== cloudId ==="
+          CLOUD_ID=$(curl -s "$JIRA_URL/_edge/tenant_info" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("cloudId",""))')
+          echo "cloudId=$CLOUD_ID"
+
+          echo "=== POST comment via gateway (scoped-token path) ==="
+          curl -s -w "\nHTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
+            -X POST "https://api.atlassian.com/ex/jira/$CLOUD_ID/rest/api/3/issue/SOFT-1/comment" \
+            -d '{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"diagnostic gateway comment"}]}]}}' | tail -5
