@@ -81,6 +81,14 @@ jobs:
           echo "=== /mypermissions?issueKey=SOFT-2 ==="
           curl "${auth[@]}" "$JIRA_URL/rest/api/3/mypermissions?issueKey=SOFT-2&permissions=ADD_COMMENTS" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps({k:v.get("havePermission") for k,v in d.get("permissions",{}).items()}))'
 
+          echo "=== issuerestriction SOFT-1 vs SOFT-2 ==="
+          for K in SOFT-1 SOFT-2; do
+            echo "-- $K issue restrictions --"
+            curl "${auth[@]}" "$JIRA_URL/rest/api/3/issue/$K?fields=issuerestriction" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("fields",{}).get("issuerestriction")))'
+            echo "-- $K entity properties --"
+            curl -s -w " [HTTP %{http_code}]\n" "${auth[@]}" "$JIRA_URL/rest/api/3/issue/$K/properties"
+          done
+
           echo "=== create+comment new issue ==="
           NEW=$(curl -s "${auth[@]}" -H "Content-Type: application/json" -X POST "$JIRA_URL/rest/api/3/issue" \
             -d '{"fields":{"project":{"key":"SOFT"},"summary":"diag issue for comment test","issuetype":{"name":"Task"}}}' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("key",""))')
