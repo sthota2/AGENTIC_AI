@@ -1,0 +1,28 @@
+name: Promote Dev to Main
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  promote-to-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "sthota2"
+          git config user.email "sthota2@users.noreply.github.com"
+
+      - name: Merge dev into main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git checkout main || git checkout -b main
+          git pull origin main || git checkout --orphan main && git rm -rf .
+          git merge dev --no-edit
+          git push origin main
