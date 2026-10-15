@@ -1,56 +1,39 @@
 ---
 name: jira-integration
-description: "Use when working with Jira issues for the AGENTIC_AI project. Handles creating, updating, transitioning, commenting, and syncing Jira tickets with Git commits and GitHub PRs. Integrates with the SOFT project at tsandyk8s.atlassian.net."
+description: "Use for low-level Jira API access in AGENTIC_AI via the shared client. Token-based auth from environment only (no passwords), DRY single-client design, stable open-source library (atlassian-python-api)."
 ---
 
 # Jira Integration Skill
 
-This skill provides tools and workflows to integrate the AGENTIC_AI project with Jira for task tracking.
+Low-level Jira API access. For task workflow/tracking conventions, see `jira-project-tracker`.
 
-## Setup Requirements
+## Security
+- Auth via **API token** from env: `JIRA_USERNAME`, `JIRA_API_TOKEN`. Never hardcode or commit secrets.
+- `JIRA_URL` fixed: `https://tsandyk8s.atlassian.net`
+- Secrets live in GitHub Actions Secrets or a gitignored `.env`. Never echo tokens.
+- Least privilege; rotate tokens regularly.
 
-The following environment variables must be configured:
+## DRY Design
+- **Single client**: all access goes through `scripts/jira/jira_client.py` (`JiraClient`).
+- No duplicate HTTP calls or ad-hoc auth code elsewhere.
 
+## Config
 ```bash
 export JIRA_URL="https://tsandyk8s.atlassian.net"
-export JIRA_USERNAME="<your-email@domain.com>"
-export JIRA_API_TOKEN="<your-api-token>"
+export JIRA_USERNAME="<your-email>"
+export JIRA_API_TOKEN="<token>"   # https://id.atlassian.com/manage-profile/security/api-tokens
 export JIRA_PROJECT_KEY="SOFT"
 ```
 
-Generate API token at: https://id.atlassian.com/manage-profile/security/api-tokens
+## Client API
+`scripts/jira/jira_client.py` exposes:
+- `get_issue(key)`
+- `search_issues(jql, fields=None)`
+- `create_issue(fields)`
+- `transition_issue(key, transition_id)`
+- `add_comment(key, comment)`
 
-## Available Scripts
-
-Scripts are located in `scripts/jira/`:
-
-- `jira_client.py` - Core client for Jira API operations
-- Use `jira-sync-workflow.yml` (GitHub Actions) for automatic commit/PR tracking
-
-## Common Workflows
-
-### Link commits to Jira issues
-Include issue keys in commit messages:
+## Example
 ```bash
-git commit -m "SOFT-123: Add README and .gitignore"
+python3 scripts/jira/jira_client.py SOFT-1
 ```
-
-### Update Jira when PR is merged
-The GitHub Actions workflow automatically adds comments to linked Jira issues when PRs are merged into main/dev.
-
-### Search for issues
-```bash
-python3 -c "
-from scripts.jira.jira_client import JiraClient
-jc = JiraClient()
-results = jc.search_issues('project=SOFT AND status=\"To Do\"')
-for r in results['issues']:
-    print(r['key'] + ': ' + r['fields']['summary'])
-"
-```
-
-## Tips
-
-- Always use the exact project key `SOFT`
-- Include issue key in branch names: `SOFT-123/feature-description`
-- Issue keys in commit messages and PR titles are auto-detected
