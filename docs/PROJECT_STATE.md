@@ -8,25 +8,24 @@ Updated by: opencode
 
 ## Current Focus
 
-- **SOFT-1** — Verification-gated auto-commit to `dev` (In Progress)
+- **SOFT-1** — Jira ↔ GitHub task tracking (In Progress)
 
 ## In Progress
 
 | Key | Task | Branch | Next step |
 |---|---|---|---|
-| SOFT-1 | Jira ↔ GitHub task tracking | `dev` | Verify `jira-sync.yml` adds comments on push referencing an issue key |
+| SOFT-1 | Jira ↔ GitHub task tracking | `dev` | Grant the token account comment permission on SOFT; re-verify sync comment |
 | SOFT-1 | Verification-gated auto-commit | `dev` | Restart opencode to load `auto-commit.ts`; confirm commit only after `verify.sh` passes |
 
 ## Blocked
 
 | Key | Task | Blocker |
 |---|---|---|
-| — | — | — |
+| SOFT-1 | Jira sync comments | Token account ("Sandeep T") lacks permission to comment on SOFT-1 |
 
 ## Next
 
 - [ ] Create first project feature issue in Jira (SOFT-*)
-- [ ] Verify `jira-sync.yml` adds comments on push referencing an issue key
 - [ ] Confirm auto-commit fires after `edit`/`write`/`bash` (post-restart)
 - [ ] Set `VERIFY_CMD` for the project once a test suite exists
 
@@ -39,6 +38,8 @@ Updated by: opencode
 - [x] Test task created (SOFT-1)
 - [x] Resumable task-state skill + PROJECT_STATE
 - [x] Auto-commit to `dev` (plugin + script + skill)
+- [x] Verification-gated auto-commit (`scripts/verify.sh`)
+- [x] Fixed promote + jira-sync workflows; both green
 
 ## Resume Recipe
 
