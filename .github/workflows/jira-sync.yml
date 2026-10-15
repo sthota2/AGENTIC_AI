@@ -4,29 +4,47 @@ on:
   push:
     branches: [main, dev]
   pull_request:
-    types: [opened, closed, merged, synchronize]
+    types: [opened, reopened, synchronize, closed]
     branches: [main, dev]
+
+permissions:
+  contents: read
 
 jobs:
   sync-jira:
     runs-on: ubuntu-latest
-    if: ${{ secrets.JIRA_API_TOKEN != '' && secrets.JIRA_USERNAME != '' }}
     steps:
+      - name: Check credentials
+        id: creds
+        env:
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          if [ -n "$JIRA_USERNAME" ] && [ -n "$JIRA_API_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Jira secrets not configured; skipping sync."
+          fi
+
       - name: Checkout
+        if: steps.creds.outputs.enabled == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        if: steps.creds.outputs.enabled == 'true'
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: |
-          pip install atlassian-python-api
+        if: steps.creds.outputs.enabled == 'true'
+        run: pip install atlassian-python-api
 
       - name: Sync commits with Jira
+        if: steps.creds.outputs.enabled == 'true'
         env:
           JIRA_URL: https://tsandyk8s.atlassian.net
           JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
@@ -35,54 +53,51 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_REPO: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF: ${{ github.ref }}
           GITHUB_PR_TITLE: ${{ github.event.pull_request.title }}
           GITHUB_PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_PR_MERGED: ${{ github.event.pull_request.merged }}
         run: |
           python3 << 'PY'
           import os
           import re
           import subprocess
-          import sys
+
           from atlassian import Jira
 
-          jira_url = os.getenv('JIRA_URL')
-          jira_user = os.getenv('JIRA_USERNAME')
-          jira_token = os.getenv('JIRA_API_TOKEN')
-          project_key = os.getenv('JIRA_PROJECT_KEY', 'SOFT')
+          jira = Jira(
+              url=os.environ['JIRA_URL'],
+              username=os.environ['JIRA_USERNAME'],
+              password=os.environ['JIRA_API_TOKEN'],
+              cloud=True,
+          )
+          project_key = os.environ.get('JIRA_PROJECT_KEY', 'SOFT')
+          event = os.environ.get('GITHUB_EVENT_NAME')
 
-          jira = Jira(url=jira_url, username=jira_user, password=jira_token, cloud=True)
-
-          # Extract issue keys from commit messages or PR title
           issue_keys = set()
-          event = os.getenv('GITHUB_EVENT_NAME')
-
           if event == 'push':
-              try:
-                  result = subprocess.run(['git', 'log', '-1', '--pretty=%B'], stdout=subprocess.PIPE, text=True)
-                  msg = result.stdout
-                  issue_keys.update(re.findall(rf'\b({project_key}-\d+)\b', msg))
-              except Exception as e:
-                  print(e)
+              msg = subprocess.run(
+                  ['git', 'log', '-1', '--pretty=%B'],
+                  stdout=subprocess.PIPE, text=True,
+              ).stdout
+              issue_keys.update(re.findall(rf'\b({project_key}-\d+)\b', msg))
+          elif event == 'pull_request':
+              issue_keys.update(
+                  re.findall(rf'\b({project_key}-\d+)\b', os.environ.get('GITHUB_PR_TITLE', ''))
+              )
 
-          if event == 'pull_request':
-              title = os.getenv('GITHUB_PR_TITLE', '')
-              issue_keys.update(re.findall(rf'\b({project_key}-\d+)\b', title))
+          if not issue_keys:
+              print('No Jira issue keys found; nothing to sync.')
 
-          # Add comment to each issue
-          repo = os.getenv('GITHUB_REPO')
-          pr_url = os.getenv('GITHUB_PR_URL')
-          ref = os.getenv('GITHUB_REF')
-
-          for key in issue_keys:
+          for key in sorted(issue_keys):
               try:
                   if event == 'push':
-                      comment = f"Commit pushed to {ref} in {repo} by {os.getenv('GITHUB_ACTOR')}"
+                      comment = f"Commit pushed to {os.environ['GITHUB_REF']} in {os.environ['GITHUB_REPO']} by {os.environ['GITHUB_ACTOR']}"
                   else:
-                      comment = f"PR {pr_url} - {event} by {os.getenv('GITHUB_ACTOR')}"
+                      state = 'merged' if os.environ.get('GITHUB_PR_MERGED') == 'true' else event
+                      comment = f"PR {os.environ.get('GITHUB_PR_URL')} {state} by {os.environ['GITHUB_ACTOR']}"
                   jira.issue_add_comment(key, comment)
-                  print(f"Updated {key}")
+                  print(f'Updated {key}')
               except Exception as e:
-                  print(f"Failed to update {key}: {e}")
+                  print(f'Failed to update {key}: {e}')
           PY
