@@ -1,13 +1,19 @@
-// Auto-commit project changes to the dev branch after file edits.
-// Delegates all logic to scripts/auto-commit.sh (single source of truth / DRY).
+// Verification-gated auto-commit.
+//
+// Commits project changes to the dev branch ONLY when scripts/verify.sh
+// passes (tests/checks are green). All logic lives in scripts/auto-commit.sh
+// (single source of truth / DRY).
+//
+// Triggers after file edits and after bash runs, so a commit is recorded once
+// a change has been tested and verified.
 //
 // Requires an opencode restart to take effect once installed.
 
-const WRITE_TOOLS = new Set(["edit", "write", "patch"]);
+const TRIGGER_TOOLS = new Set(["edit", "write", "patch", "bash"]);
 
 export const AutoCommitDev = async ({ $, directory }) => ({
   "tool.execute.after": async (input) => {
-    if (!WRITE_TOOLS.has(input.tool)) return;
+    if (!TRIGGER_TOOLS.has(input.tool)) return;
     try {
       await $(`bash ${directory}/scripts/auto-commit.sh`)
         .cwd(directory)

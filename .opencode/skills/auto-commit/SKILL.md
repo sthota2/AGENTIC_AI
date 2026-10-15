@@ -1,26 +1,42 @@
 ---
 name: auto-commit
-description: "Use when modifying files in this project. All changes are automatically committed to the dev branch by default via an opencode plugin + scripts/auto-commit.sh. Explains the auto-commit behavior, safe-by-design guarantees, and how to override or disable it."
+description: "Use when modifying files in this project. Changes are auto-committed to the dev branch ONLY after they are tested and verified (scripts/verify.sh passes). Explains the verification gate, safe-by-design guarantees, and how to override or disable it."
 ---
 
-# Auto-Commit to dev Skill
+# Auto-Commit to dev (verification-gated) Skill
 
-By default, every file change made through the agent is auto-committed to the
-`dev` branch. This preserves work across interruptions so tasks resume exactly
-where they left off (see `task-state`).
+Changes are auto-committed to the `dev` branch **only when they are tested and
+verified**. Unverified work is left uncommitted so it is never recorded as good.
+This preserves work across interruptions (see `task-state`) without polluting
+history with broken states.
 
 ## How it works
 
-- `.opencode/plugin/auto-commit.ts` hooks `tool.execute.after` for the
-  `edit`, `write`, and `patch` tools.
-- It calls `scripts/auto-commit.sh` — the single source of truth (DRY).
-- The script stages and commits changes to `dev`, or carries uncommitted
-  work onto `dev` when the current branch differs.
+1. `.opencode/plugin/auto-commit.ts` hooks `tool.execute.after` for
+   `edit`, `write`, `patch`, and `bash`.
+2. It calls `scripts/auto-commit.sh` — the single source of truth (DRY).
+3. `auto-commit.sh` first runs `scripts/verify.sh` (the verification gate).
+   - **verify passes** → stage + commit to `dev`.
+   - **verify fails** → do nothing (changes stay uncommitted).
+4. Committing from another branch carries the work onto `dev` when possible.
+
+## Verification gate (`scripts/verify.sh`)
+
+Runs lightweight, stable checks by default:
+- Rejects whitespace errors and conflict markers (tracked and untracked).
+- `bash -n` syntax-checks changed shell scripts.
+- `ast.parse` syntax-checks changed Python files (no bytecode written).
+- Runs project tests when `VERIFY_CMD` is set (e.g. `pytest -q`, `npm test`).
+
+Set the project test command once (DRY):
+```bash
+export VERIFY_CMD="pytest -q"
+```
 
 ## Guarantees (safe by design)
 
-- **Never loses work.** If switching to `dev` is not possible, changes are
-  committed on the current branch instead.
+- **Verified only.** No commit unless `scripts/verify.sh` exits 0.
+- **Never loses work.** Verification failure leaves changes intact on disk.
 - **No empty commits.** A clean tree is a no-op.
 - **No secrets.** Only the working tree is committed; tokens/passwords are
   never written (env/Secrets only — see `jira-integration`).
@@ -31,18 +47,18 @@ where they left off (see `task-state`).
 ## Override / disable
 
 - Target a different branch: `export AUTO_COMMIT_BRANCH=feature/x`.
-- Temporarily disable: remove/rename `.opencode/plugin/auto-commit.ts`
-  (requires an opencode restart to take effect).
+- Skip the verification gate (not recommended): `export AUTO_COMMIT_SKIP_VERIFY=1`.
+- Disable entirely: remove/rename `.opencode/plugin/auto-commit.ts`
+  (requires an opencode restart).
 
 ## Commit format
 
-Auto-commits use:
 ```
-chore(auto): save progress on <branch>
+chore(auto): save verified progress on <branch>
 ```
 Authored as `sthota2 <sthota2@users.noreply.github.com>`.
 
 ## Notes
 
 - Plugins load at startup. After adding/removing the plugin, **restart opencode**.
-- Manual commits are still fine; auto-commit simply ensures nothing is lost.
+- Manual commits are still fine; auto-commit only records verified states.
