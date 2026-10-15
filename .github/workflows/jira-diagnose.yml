@@ -66,3 +66,19 @@ jobs:
           curl -s -w "\nHTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
             -X POST "https://api.atlassian.com/ex/jira/$CLOUD_ID/rest/api/3/issue/SOFT-1/comment" \
             -d '{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"diagnostic gateway comment"}]}]}}' | tail -5
+
+          echo "=== /mypermissions?issueKey=SOFT-1 ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/mypermissions?issueKey=SOFT-1&permissions=ADD_COMMENTS,BROWSE_PROJECTS" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps({k:v.get("havePermission") for k,v in d.get("permissions",{}).items()}, indent=2))'
+
+          echo "=== /issue/SOFT-1 (security/type/reporter) ==="
+          curl "${auth[@]}" "$JIRA_URL/rest/api/3/issue/SOFT-1?fields=security,issuetype,reporter,creator,labels" | python3 -c 'import sys,json; d=json.load(sys.stdin); f=d.get("fields",d); print({"security":f.get("security"),"issuetype":(f.get("issuetype") or {}).get("name"),"reporter":(f.get("reporter") or {}).get("displayName"),"creator":(f.get("creator") or {}).get("displayName"),"labels":f.get("labels")})'
+
+          echo "=== create+comment new issue ==="
+          NEW=$(curl -s "${auth[@]}" -H "Content-Type: application/json" -X POST "$JIRA_URL/rest/api/3/issue" \
+            -d '{"fields":{"project":{"key":"SOFT"},"summary":"diag issue for comment test","issuetype":{"name":"Task"}}}' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("key",""))')
+          echo "new issue: $NEW"
+          if [ -n "$NEW" ]; then
+            curl -s -w "\nHTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
+              -X POST "$JIRA_URL/rest/api/3/issue/$NEW/comment" \
+              -d '{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"diag comment on new issue"}]}]}}' | tail -3
+          fi
