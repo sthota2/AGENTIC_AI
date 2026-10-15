@@ -8,13 +8,14 @@ Updated by: opencode
 
 ## Current Focus
 
-- **SOFT-1** — Jira integration + project tracker setup (In Progress)
+- **SOFT-1** — Enable auto-commit to `dev` by default (In Progress)
 
 ## In Progress
 
 | Key | Task | Branch | Next step |
 |---|---|---|---|
-| SOFT-1 | Jira ↔ GitHub task tracking | `dev` | Wire CI secrets, verify sync on push |
+| SOFT-1 | Jira ↔ GitHub task tracking | `dev` | Verify `jira-sync.yml` adds comments on push referencing an issue key |
+| SOFT-1 | Auto-commit to `dev` | `dev` | Restart opencode to load `auto-commit.ts`; verify a commit appears after an edit |
 
 ## Blocked
 
@@ -26,6 +27,7 @@ Updated by: opencode
 
 - [ ] Create first project feature issue in Jira (SOFT-*)
 - [ ] Verify `jira-sync.yml` adds comments on push referencing an issue key
+- [ ] Confirm auto-commit fires after `edit`/`write` (post-restart)
 
 ## Done
 
@@ -34,6 +36,8 @@ Updated by: opencode
 - [x] Dev → Main promotion workflow
 - [x] Jira integration (client, skill, sync workflow)
 - [x] Test task created (SOFT-1)
+- [x] Resumable task-state skill + PROJECT_STATE
+- [x] Auto-commit to `dev` (plugin + script + skill)
 
 ## Resume Recipe
 
