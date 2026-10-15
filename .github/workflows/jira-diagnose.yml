@@ -75,7 +75,7 @@ jobs:
 
           echo "=== compare status SOFT-1 vs SOFT-2 ==="
           for K in SOFT-1 SOFT-2; do
-            curl "${auth[@]}" "$JIRA_URL/rest/api/3/issue/$K?fields=status,issuetype,project" | python3 -c 'import sys,json; d=json.load(sys.stdin); f=d.get("fields",{}); print(d.get("key"), "status=",(f.get("status") or {}).get("name"), "type=",(f.get("issuetype") or {}).get("name"), "project=",(f.get("project") or {}).get("key"))'
+            curl "${auth[@]}" "$JIRA_URL/rest/api/3/issue/$K?fields=status,issuetype,project" | python3 -c 'import sys,json; d=json.load(sys.stdin); s=d.get("fields",{}).get("status",{}); print(d.get("key"), "status=",s.get("name"), "statusId=",s.get("id"), "cat=",(s.get("statusCategory") or {}).get("key"))'
           done
 
           echo "=== /mypermissions?issueKey=SOFT-2 ==="
@@ -101,6 +101,15 @@ jobs:
           for K in SOFT-1 SOFT-2; do
             echo -n "$K servicedeskapi: "; curl -s -o /dev/null -w "HTTP %{http_code}\n" "${auth[@]}" "$JIRA_URL/rest/servicedeskapi/request/$K"
           done
+
+          echo "=== PUT edit SOFT-1 (test edit permission) ==="
+          curl -s -o /dev/null -w "HTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
+            -X PUT "$JIRA_URL/rest/api/3/issue/SOFT-1" -d '{"fields":{"summary":"SOFT-1 diag"}}'
+
+          echo "=== re-POST comment SOFT-1 ==="
+          curl -s -w "\nHTTP %{http_code}\n" "${auth[@]}" -H "Content-Type: application/json" \
+            -X POST "$JIRA_URL/rest/api/3/issue/SOFT-1/comment" \
+            -d '{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"retry comment"}]}]}}' | tail -3
 
           echo "=== create+comment new issue ==="
           NEW=$(curl -s "${auth[@]}" -H "Content-Type: application/json" -X POST "$JIRA_URL/rest/api/3/issue" \
